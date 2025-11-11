@@ -7,6 +7,8 @@
 *.dll
 *.so
 *.dylib
+bin
+testbin/*
 
 # Test binary, built with `go test -c`
 *.test
@@ -23,6 +25,10 @@ profile.cov
 # Go workspace file
 go.work
 go.work.sum
+
+# operator-sdk generated bundle files
+bundle.Dockerfile
+bundle
 
 # env file
 .env
