@@ -28,8 +28,11 @@ BUNDLE_METADATA_OPTS ?= $(BUNDLE_CHANNELS) $(BUNDLE_DEFAULT_CHANNEL)
 # This variable is used to construct full image tags for bundle and catalog images.
 #
 # For example, running 'make bundle-build bundle-push catalog-build catalog-push' will build and push both
-# openshift.io/ceph-volsync-plugin-operator-bundle:$VERSION and openshift.io/ceph-volsync-plugin-operator-catalog:$VERSION.
-IMAGE_TAG_BASE ?= openshift.io/ceph-volsync-plugin-operator
+# quay.io/ramendr/ceph-volsync-plugin-operator-bundle:$VERSION and quay.io/ramendr/ceph-volsync-plugin-operator-catalog:$VERSION.
+IMAGE_TAG_BASE ?= quay.io/ramendr/ceph-volsync-plugin-operator
+
+# MOVER_IMAGE_TAG_BASE defines the docker.io namespace and part of the image name for the mover plugin image.
+MOVER_IMAGE_TAG_BASE ?= quay.io/ramendr/ceph-volsync-plugin-mover
 
 # BUNDLE_IMG defines the image:tag used for the bundle.
 # You can use it as an arg. (E.g make bundle-build BUNDLE_IMG=<some-registry>/<project-name-bundle>:<tag>)
@@ -50,7 +53,10 @@ endif
 # This is useful for CI or a project to utilize a specific version of the operator-sdk toolkit.
 OPERATOR_SDK_VERSION ?= v1.41.1
 # Image URL to use all building/pushing image targets
-IMG ?= controller:latest
+IMG ?= $(IMAGE_TAG_BASE):v$(VERSION)
+
+# MOVER_IMG defines the image:tag used for the mover plugin image.
+MOVER_IMG ?= $(MOVER_IMAGE_TAG_BASE):v$(VERSION)
 
 # Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
 ifeq (,$(shell go env GOBIN))
@@ -168,7 +174,7 @@ run: manifests generate fmt vet ## Run a controller from your host.
 # More info: https://docs.docker.com/develop/develop-images/build_enhancements/
 .PHONY: docker-build
 docker-build: ## Build docker image with the manager.
-	$(CONTAINER_TOOL) build -t ${IMG} .
+	$(CONTAINER_TOOL) build -t ${IMG} -f build/Containerfile.manager .
 
 .PHONY: docker-push
 docker-push: ## Push docker image with the manager.
@@ -183,13 +189,31 @@ docker-push: ## Push docker image with the manager.
 PLATFORMS ?= linux/arm64,linux/amd64,linux/s390x,linux/ppc64le
 .PHONY: docker-buildx
 docker-buildx: ## Build and push docker image for the manager for cross-platform support
-	# copy existing Dockerfile and insert --platform=${BUILDPLATFORM} into Dockerfile.cross, and preserve the original Dockerfile
-	sed -e '1 s/\(^FROM\)/FROM --platform=\$$\{BUILDPLATFORM\}/; t' -e ' 1,// s//FROM --platform=\$$\{BUILDPLATFORM\}/' Dockerfile > Dockerfile.cross
+	# copy existing Containerfile.manager and insert --platform=${BUILDPLATFORM} into Containerfile.manager.cross, and preserve the original Containerfile.manager
+	sed -e '1 s/\(^FROM\)/FROM --platform=\$$\{BUILDPLATFORM\}/; t' -e ' 1,// s//FROM --platform=\$$\{BUILDPLATFORM\}/' Containerfile.manager > Containerfile.manager.cross
 	- $(CONTAINER_TOOL) buildx create --name ceph-volsync-plugin-operator-builder
 	$(CONTAINER_TOOL) buildx use ceph-volsync-plugin-operator-builder
-	- $(CONTAINER_TOOL) buildx build --push --platform=$(PLATFORMS) --tag ${IMG} -f Dockerfile.cross .
+	- $(CONTAINER_TOOL) buildx build --push --platform=$(PLATFORMS) --tag ${IMG} -f Containerfile.manager.cross .
 	- $(CONTAINER_TOOL) buildx rm ceph-volsync-plugin-operator-builder
-	rm Dockerfile.cross
+	rm Containerfile.manager.cross
+
+.PHONY: docker-build-mover
+docker-build-mover: ## Build docker image with the mover.
+	$(CONTAINER_TOOL) build -t ${MOVER_IMG} -f build/Containerfile.mover .
+
+.PHONY: docker-push-mover
+docker-push-mover: ## Push docker image with the mover.
+	$(CONTAINER_TOOL) push ${MOVER_IMG}
+
+.PHONY: docker-buildx-mover
+docker-buildx-mover: ## Build and push docker image for the mover for cross-platform support
+	# copy existing Containerfile.mover and insert --platform=${BUILDPLATFORM} into Containerfile.mover.cross, and preserve the original Containerfile.mover
+	sed -e '1 s/\(^FROM\)/FROM --platform=\$$\{BUILDPLATFORM\}/; t' -e ' 1,// s//FROM --platform=\$$\{BUILDPLATFORM\}/' build/Containerfile.mover > build/Containerfile.mover.cross
+	- $(CONTAINER_TOOL) buildx create --name ceph-volsync-plugin-mover-builder
+	$(CONTAINER_TOOL) buildx use ceph-volsync-plugin-mover-builder
+	- $(CONTAINER_TOOL) buildx build --push --platform=$(PLATFORMS) --tag ${MOVER_IMG} -f build/Containerfile.mover.cross .
+	- $(CONTAINER_TOOL) buildx rm ceph-volsync-plugin-mover-builder
+	rm build/Containerfile.mover.cross
 
 .PHONY: build-installer
 build-installer: manifests generate kustomize ## Generate a consolidated YAML with CRDs and deployment.
@@ -314,7 +338,7 @@ bundle: manifests kustomize operator-sdk ## Generate bundle manifests and metada
 
 .PHONY: bundle-build
 bundle-build: ## Build the bundle image.
-	$(CONTAINER_TOOL) build -f bundle.Dockerfile -t $(BUNDLE_IMG) .
+	$(CONTAINER_TOOL) build -f bundle.Containerfile.manager -t $(BUNDLE_IMG) .
 
 .PHONY: bundle-push
 bundle-push: ## Push the bundle image.
