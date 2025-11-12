@@ -60,10 +60,11 @@ var _ = Describe("Manager", Ordered, func() {
 		_, err = utils.Run(cmd)
 		Expect(err).NotTo(HaveOccurred(), "Failed to label namespace with restricted policy")
 
-		By("installing CRDs")
-		cmd = exec.Command("make", "install")
-		_, err = utils.Run(cmd)
-		Expect(err).NotTo(HaveOccurred(), "Failed to install CRDs")
+		// TODO: install CRDS from VolSync project.
+		// By("installing CRDs")
+		// cmd = exec.Command("make", "install")
+		// _, err = utils.Run(cmd)
+		// Expect(err).NotTo(HaveOccurred(), "Failed to install CRDs")
 
 		By("deploying the controller-manager")
 		cmd = exec.Command("make", "deploy", fmt.Sprintf("IMG=%s", projectImage))
@@ -84,9 +85,10 @@ var _ = Describe("Manager", Ordered, func() {
 		cmd := exec.Command("make", "undeploy")
 		_, _ = utils.Run(cmd)
 
-		By("uninstalling CRDs")
-		cmd = exec.Command("make", "uninstall")
-		_, _ = utils.Run(cmd)
+		// TODO: uninstall CRDS from VolSync project.
+		// By("uninstalling CRDs")
+		// cmd = exec.Command("make", "uninstall")
+		// _, _ = utils.Run(cmd)
 
 		By("removing manager namespace")
 		cmd = exec.Command("kubectl", "delete", "ns", namespace)
