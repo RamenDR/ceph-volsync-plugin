@@ -30,6 +30,11 @@ function clone_rook() {
     # Patch find_extra_block_dev to deduplicate boot devices
     sed -i "s/awk '{print \$2}'/awk '{print \$2}' | sort -u/" \
         "${ROOK_HELPER}"
+
+    # wait_for_prepare_pod greps for rook-ceph-mon-a, which also matches
+    # the canary pod (even while Pending). Require the real mon Running.
+    sed -i "s/grep 'rook-ceph-mon-a'/grep -v canary | grep 'rook-ceph-mon-a-.*Running'/" \
+        "${ROOK_HELPER}"
 }
 
 function print_cluster_status() {
@@ -78,6 +83,12 @@ function deploy_ceph_cluster() {
     export DEVICE_FILTER="${device_filter}"
     sed -i \
         "s|#deviceFilter:|deviceFilter: ${DEVICE_FILTER}|g" \
+        "${ROOK_EXAMPLES}/cluster-test.yaml"
+    # Host networking avoids Calico CNI flakes that prevent mon quorum
+    # on GitHub Actions minikube-none runners.
+    sed -i '/dataDirHostPath:/a\
+  network:\
+    provider: host' \
         "${ROOK_EXAMPLES}/cluster-test.yaml"
     cat "${ROOK_EXAMPLES}/cluster-test.yaml"
     kubectl_retry create \
