@@ -70,15 +70,61 @@ It registers as an external mover with VolSync and handles `ReplicationSource` a
 
 ## Quick Start
 
-### Install the operator
+### Install from a release (recommended)
+
+```bash
+# Set the desired release version
+RELEASE=v0.1.0
+
+# Apply the consolidated install manifest
+kubectl apply -f "https://github.com/RamenDR/ceph-volsync-plugin/releases/download/${RELEASE}/install.yaml"
+```
+
+The install manifest includes the namespace, RBAC, and the operator deployment with
+versioned container image references baked in. By default it deploys into the `ceph-volsync`
+namespace and reads the Ceph CSI config from `ceph-csi-config` ConfigMap in `rook-ceph`.
+
+#### Customizing the release manifest
+
+To change the namespace or CSI config location, download and patch the manifest:
+
+```bash
+export RELEASE=v0.1.0
+export NAMESPACE=my-namespace
+export CEPH_CSI_CONFIG_NAME=my-csi-configmap
+export CEPH_CSI_CONFIG_NAMESPACE=my-ceph-namespace
+
+curl -sL "https://github.com/RamenDR/ceph-volsync-plugin/releases/download/${RELEASE}/install.yaml" \
+  | sed "s/name: ceph-volsync$/name: ${NAMESPACE}/" \
+  | sed "s/namespace: ceph-volsync/namespace: ${NAMESPACE}/g" \
+  | sed "s/value: ceph-csi-config/value: ${CEPH_CSI_CONFIG_NAME}/g" \
+  | sed "s/value: rook-ceph/value: ${CEPH_CSI_CONFIG_NAMESPACE}/g" \
+  | kubectl apply -f -
+```
+
+| Variable | Default | Sed target | Description |
+|----------|---------|-----------|-------------|
+| `NAMESPACE` | `ceph-volsync` | `namespace: ceph-volsync` | Operator deployment namespace |
+| `CEPH_CSI_CONFIG_NAME` | `ceph-csi-config` | `value: ceph-csi-config` | Ceph CSI ConfigMap name |
+| `CEPH_CSI_CONFIG_NAMESPACE` | `rook-ceph` | `value: rook-ceph` | Ceph CSI ConfigMap namespace |
+
+### Install from source
+
+For full control over all configuration, build and deploy from source.
+
+To change the deployment namespace, edit `namespace:` in `config/default/kustomization.yaml`.
+To change the CSI ConfigMap name or namespace, pass them as Make variables:
 
 ```bash
 # Install CRDs (VolSync CRDs must already be present)
 make install
 
-# Deploy the operator using the published image
-make deploy IMG=quay.io/ramendr/ceph-volsync-plugin-operator:latest \
-  MOVER_IMG=quay.io/ramendr/ceph-volsync-plugin-mover:latest
+# Deploy with custom CSI config
+make deploy \
+  IMG=quay.io/ramendr/ceph-volsync-plugin-operator:latest \
+  MOVER_IMG=quay.io/ramendr/ceph-volsync-plugin-mover:latest \
+  CEPH_CSI_CONFIG_NAME=my-csi-configmap \
+  CEPH_CSI_CONFIG_NAMESPACE=my-ceph-namespace
 ```
 
 ### Configure replication

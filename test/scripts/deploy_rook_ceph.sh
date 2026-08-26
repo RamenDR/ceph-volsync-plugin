@@ -8,7 +8,7 @@ SCRIPT_DIR="$(dirname "${0}")"
 # shellcheck disable=SC1091
 [ ! -e "${SCRIPT_DIR}"/utils.sh ] || source "${SCRIPT_DIR}"/utils.sh
 
-ROOK_VERSION="${ROOK_VERSION:-v1.19.2}"
+ROOK_VERSION="${ROOK_VERSION:-v1.19.9}"
 ROOK_DIR="${ROOK_DIR:-/tmp/rook}"
 ROOK_EXAMPLES="${ROOK_DIR}/deploy/examples"
 ROOK_HELPER="${ROOK_DIR}/tests/scripts/github-action-helper.sh"
@@ -29,6 +29,11 @@ function clone_rook() {
     # TODO: remove this once, the fix is included in a Rook release.
     # Patch find_extra_block_dev to deduplicate boot devices
     sed -i "s/awk '{print \$2}'/awk '{print \$2}' | sort -u/" \
+        "${ROOK_HELPER}"
+
+    # wait_for_prepare_pod greps for rook-ceph-mon-a, which also matches
+    # the canary pod (even while Pending). Require the real mon Running.
+    sed -i "s/grep 'rook-ceph-mon-a'/grep -v canary | grep 'rook-ceph-mon-a-.*Running'/" \
         "${ROOK_HELPER}"
 }
 
@@ -78,6 +83,12 @@ function deploy_ceph_cluster() {
     export DEVICE_FILTER="${device_filter}"
     sed -i \
         "s|#deviceFilter:|deviceFilter: ${DEVICE_FILTER}|g" \
+        "${ROOK_EXAMPLES}/cluster-test.yaml"
+    # Host networking avoids Calico CNI flakes that prevent mon quorum
+    # on GitHub Actions minikube-none runners.
+    sed -i '/dataDirHostPath:/a\
+  network:\
+    provider: host' \
         "${ROOK_EXAMPLES}/cluster-test.yaml"
     cat "${ROOK_EXAMPLES}/cluster-test.yaml"
     kubectl_retry create \
